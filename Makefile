@@ -1,5 +1,5 @@
-STUID = ysyx_22040000
-STUNAME = 张三
+STUID = 231220000-Wang Chuan Hao
+STUNAME = wch
 
 # DO NOT modify the following code!!!
 
