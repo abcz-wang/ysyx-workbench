@@ -1,0 +1,3 @@
+[submodule "yosys-sta"]
+	path = yosys-sta
+	url = https://github.com/OSCPU/yosys-sta.git
