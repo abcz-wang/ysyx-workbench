@@ -30,10 +30,52 @@ static char *code_format =
 "  printf(\"%%u\", result); "
 "  return 0; "
 "}";
-
-static void gen_rand_expr() {
-  buf[0] = '\0';
+int buf_index=0;
+#define MAX_DEPTH 10
+void gen_num() {
+  unsigned num = rand() % 50 + 1;
+  int len = snprintf(buf + buf_index, sizeof(buf) - buf_index, "%u", num);
+  buf_index += len;
+  buf[buf_index] = '\0';  // 添加终结符，防止后续使用未终止字符串
 }
+
+
+
+void gen(char c) {
+  buf[buf_index++] = c;
+  buf[buf_index] = '\0';
+}
+
+void gen_rand_op() {
+  char ops[] = {'+', '-', '*', '/'};
+  char op = ops[rand() % 4];
+  gen(op);
+}
+static void gen_rand_expr(int depth) {
+  if(depth>=MAX_DEPTH){
+    gen_num();
+    return;
+  }
+
+  if (buf_index >= sizeof(buf) - 10) {
+    gen_num(); // 强制生成数字
+    return;
+  }
+// 调整概率：数字40%，括号20%，运算符40%
+int choice = rand() % 5;
+if (choice < 2) { // 0-1: 数字
+  gen_num();
+} else if (choice < 3) { // 2: 括号
+  gen('(');
+  gen_rand_expr(depth + 1);
+  gen(')');
+} else { // 3-4: 运算符
+  gen_rand_expr(depth + 1);
+  gen_rand_op();
+  gen_rand_expr(depth + 1);
+}
+}
+
 
 int main(int argc, char *argv[]) {
   int seed = time(0);
@@ -44,7 +86,9 @@ int main(int argc, char *argv[]) {
   }
   int i;
   for (i = 0; i < loop; i ++) {
-    gen_rand_expr();
+    buf[0] = '\0';          // 清空表达式缓存
+    buf_index = 0;          // 重置指针
+    gen_rand_expr(0);
 
     sprintf(code_buf, code_format, buf);
 

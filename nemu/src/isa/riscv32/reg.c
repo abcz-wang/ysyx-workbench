@@ -32,5 +32,28 @@ void isa_reg_display() {
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
+  if (s == NULL) {
+    *success = false;
+    return 0;
+  }
+
+  // 特殊处理 pc
+  if (strcmp(s, "$pc") == 0 || strcmp(s, "pc") == 0) {
+    *success = true;
+    return cpu.pc;
+  }
+
+  // 比较 $0, ra, sp 等 32 个通用寄存器
+  for (int i = 0; i < 32; i++) {
+    // 支持 $前缀和无$前缀两种形式
+    if (strcmp(s, regs[i]) == 0 || 
+        (s[0] == '$' && strcmp(s + 1, regs[i]) == 0)) {
+      *success = true;
+      return cpu.gpr[i];
+    }
+  }
+
+  // 没有匹配上
+  *success = false;
   return 0;
 }

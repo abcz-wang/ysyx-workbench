@@ -59,6 +59,10 @@ static int cmd_help(char *args);
 static int  cmd_si(char *args);
 static int cmd_info(char *args);
 static int cmd_x(char *args);
+static int cmd_p(char *args);
+static int cmd_w(char *args);
+static int cmd_d(char *args);
+
 
 static struct {
   const char *name;
@@ -70,7 +74,12 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Lets the program pause after executing N instructions using single step execution,When N is not given, the default is 1", cmd_si},
   { "info", "Print register status or Print watchpoint information", cmd_info},
-  {"x", "Finds the value of the expression EXPR, uses the result as the starting memory address, and outputs consecutive N 4 bytes in hexadecimal.", cmd_x}
+  {"x", "Finds the value of the expression EXPR, uses the result as the starting memory address, and outputs consecutive N 4 bytes in hexadecimal.", cmd_x},
+  {"p","Find the value of the expression EXPR",cmd_p},
+  {"w","Suspend program execution when the value of expression EXPR changes.",cmd_w},
+  {"d","	Deletes the watchpoint with ID N.",cmd_d}
+
+
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -130,7 +139,7 @@ static int cmd_info(char *args){
     isa_reg_display();
   }
   else if (strcmp(arg, "w") == 0) {
-    // 打印监测点信息
+    list_watchpoints();
   }
   else {
     printf("Unknown info command: %s\n", arg);
@@ -138,38 +147,145 @@ static int cmd_info(char *args){
 
   return 0;
 }
-static int cmd_x(char *args){
-  char *arg1 = strtok(args, " ");
-  char *arg2 = strtok(NULL, " ");
-  if(arg1==NULL||arg2== NULL){
+static int cmd_x(char *args) {
+  // 参数分解
+  char *arg1 = strtok(args, " ");     // N
+  char *arg2 = strtok(NULL, " ");     // EXPR
+  char *extra = strtok(NULL, " ");    // 检查是否有多余参数
+
+  if (arg1 == NULL || arg2 == NULL) {
     printf("Usage: x N EXPR\n");
     return 0;
   }
-  char *extra = strtok(NULL, " ");
-if (extra != NULL) {
-  printf("Too many arguments. Usage: x N EXPR\n");
-  return 0;
-}
-
-  char*end1 ,*end2;
-  int n=strtol(arg1,&end1,0);
-  paddr_t addr = strtol(arg2,&end2,0);
-
-  if (*end1 != '\0' || *end2 != '\0') {
-    printf("Usage: x N EXPR (both must be numbers)\n");
+  if (extra != NULL) {
+    printf("Too many arguments. Usage: x N EXPR\n");
     return 0;
   }
 
-  else{
-  // 正确方式：每次读取4字节，连续读取N次
+  // 解析第一个参数 N
+  char *end1;
+  int n = strtol(arg1, &end1, 0);
+  if (*end1 != '\0' || n <= 0) {
+    printf("Error: N must be a positive number.\n");
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+
+  // 第二个参数：表达式求值
+  bool success = false;
+  word_t addr = expr(arg2, &success);
+  if (!success) {
+    printf("Error: Invalid expression: %s\n", arg2);
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+
+  // 正常打印内存
   for (int i = 0; i < n; i++) {
     word_t data = paddr_read(addr + i * 4, 4);
     printf("0x%08x: 0x%08x\n", addr + i * 4, data);
   }
 
-  }
   return 0;
-} 
+}
+
+static int cmd_p(char *args) {
+  if (args == NULL) {
+    printf("Usage: p EXPR\n");
+    return 0;
+  }
+
+  bool success = false;
+  word_t result = expr(args, &success);
+
+  if (success) {
+    printf("Result = %u (0x%x)\n", result, result);  // 打印十进制和十六进制
+  } else {
+    printf("Error: Invalid expression.\n");
+  }
+
+  return 0;
+}
+
+static int cmd_w(char *args) {
+  if (args == NULL) {
+    printf("Usage: w EXPR\n");
+    return 0;
+  }
+
+  word_t val = 0;
+  bool success = true;
+
+  // 解析表达式
+  val = expr(args, &success);
+  if (!success) {
+    printf("Invalid expression: %s\n", args);
+    return 0;
+  }
+
+  // 创建一个新的监视点
+  WP *wp = new_wp();
+  if (wp == NULL) {
+    printf("No free watchpoints available!\n");
+    return 0;
+  }
+
+  // 保存表达式和当前值
+  strncpy(wp->expr, args, sizeof(wp->expr) - 1);
+  wp->expr[sizeof(wp->expr) - 1] = '\0';
+  wp->last_val = val;
+
+  // 打印成功信息
+  printf("Set watchpoint %d: %s == " FMT_WORD "\n", wp->NO, wp->expr, wp->last_val);
+  return 0;
+}
+
+static int cmd_d(char *args) {
+  if (args == NULL || *args == '\0') {
+      printf("Error: No watchpoint number specified.\n");
+      return 0;
+  }
+
+  // 跳过前导空格
+  while (isspace((unsigned char)*args)) {
+      args++;
+  }
+
+  char *endptr;
+  long num = strtol(args, &endptr, 10);
+
+  // 检查是否成功转换数字
+  if (endptr == args) {
+      printf("Error: '%s' is not a valid number.\n", args);
+      return 0;
+  }
+
+  // 检查剩余字符是否全为空格
+  while (*endptr != '\0') {
+      if (!isspace((unsigned char)*endptr)) {
+          printf("Error: Invalid characters in number '%s'.\n", args);
+          return 0;
+      }
+      endptr++;
+  }
+
+  // 检查数值范围
+  if (num <= 0 ) {
+      printf("Error: Number %ld is out of valid range .\n", num);
+      return 0;
+  }
+
+  int no = (int)num;
+
+  // 尝试删除监视点
+  if (delete_wp(no)) {
+      printf("Watchpoint %d deleted.\n", no);
+  } else {
+      printf("Error: Watchpoint %d not found.\n", no);
+  }
+
+  return 0;
+}
 
 void sdb_set_batch_mode() {
   is_batch_mode = true;

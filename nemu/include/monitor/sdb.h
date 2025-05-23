@@ -21,7 +21,7 @@
 typedef struct watchpoint {
     int NO;
     struct watchpoint *next;
-    char expr[128];             // 表达式字符串（如 "$eax" 或 "a + b"）
+    char expr[128];             // 表达式字符串
     word_t last_val;            // 上一次表达式的值
   
     /* TODO: Add more members if necessary */
