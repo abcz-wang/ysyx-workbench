@@ -61,3 +61,6 @@ else
 # Include rules to build NEMU
 include $(NEMU_HOME)/scripts/native.mk
 endif
+.PHONY : count
+count:
+	find . | grep '\.c$$\|\.h$$' | xargs cat | wc -l
