@@ -65,7 +65,7 @@ endif
 .PHONY: count
 
 count:
-	find . | grep '\.c$$\|\.h$$' | xargs cat | wc -l
+	find . -name '*.c' -o -name '*.h' | xargs cat | grep -v '^\s*$' | wc -l
 
 
 

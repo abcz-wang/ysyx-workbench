@@ -46,7 +46,7 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
     default: panic("unsupported type = %d", type);
   }
 }
-
+//li,addi,jal,ret,sw,mv,j
 static int decode_exec(Decode *s) {
   s->dnpc = s->snpc;
 
