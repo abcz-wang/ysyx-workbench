@@ -23,11 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define MAX_TOKEN_LEN 31
-#define TOKENS_SIZE 32
+#define TOKENS_SIZE 65536
 enum {
-  TK_NOTYPE = 256, 
+  TK_NOTYPE = 256, //空格，为了避免和普通 ASCII 字符冲突，从 256 开始编号
   TK_EQ,
-  TK_NUM,     // shuzi
+  TK_NUM,     // 数字
   TK_HEX,     //十六进制
   TK_REG,      //寄存器
   TK_DEREF,     //指针解引用
@@ -47,19 +47,19 @@ static struct rule {
    * Pay attention to the precedence level of different rules.
    */
 
-  {" +", TK_NOTYPE},    // spaces，这里+为正则表达
-  {"\\+", '+'},         // plus，\+匹配一个+字符 \\转义‘\’
+  {" +", TK_NOTYPE},    // spaces，这里+为正则表达，表示匹配空格一次或多次
+  {"\\+", '+'},         // plus，正则表达式\+匹配一个+字符 C语言中\\转义‘\’
   {"-", '-'},
-  {"\\*",'*'},
+  {"\\*",'*'},         //正则里 *也是特殊符号，表示匹配0次或多次
   {"/",'/'},
-  {"\\(",'('},
+  {"\\(",'('},          //正则里()也是特殊符号，用于分组。因此也需要转义
   {"\\)",')'},
   {"==", TK_EQ},        // equal
   {"!=",TK_NOEQ},
   {"&&",TK_AND},
-  {"0[xX][0-9A-Fa-f]+",TK_HEX},
-  {"[0-9]+",TK_NUM},
-  {"\\$[a-zA-Z0-9]+",TK_REG}
+  {"0[xX][0-9A-Fa-f]+",TK_HEX}, //16进制
+  {"[0-9]+",TK_NUM},            //10进制
+  {"\\$[a-zA-Z0-9]+",TK_REG}    //reg,前缀$也是特殊符号，表示行尾.
 
 };
 
@@ -90,7 +90,7 @@ typedef struct token {
 } Token;
 
 static Token tokens[TOKENS_SIZE] __attribute__((used)) = {};
-static int nr_token __attribute__((used))  = 0;
+static int nr_token __attribute__((used))  = 0;//当前已记录的 token 数量
 
 static bool make_token(char *e) {
   int position = 0;
@@ -103,11 +103,11 @@ static bool make_token(char *e) {
     /* Try all rules one by one. */
     for (i = 0; i < NR_REGEX; i ++) {
       if (regexec(&re[i], e + position, 1, &pmatch, 0) == 0 && pmatch.rm_so == 0) {
-        char *substr_start = e + position;
-        int substr_len = pmatch.rm_eo;
-
-        Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
-            i, rules[i].regex, position, substr_len, substr_len, substr_start);
+        char *substr_start = e + position;//子串起始地址
+        int substr_len = pmatch.rm_eo;//当前匹配到的子串长度
+        //匹配调试信息
+        // Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
+        //     i, rules[i].regex, position, substr_len, substr_len, substr_start);
 
         position += substr_len;
 
@@ -121,7 +121,7 @@ static bool make_token(char *e) {
             break;
           case TK_HEX:
           case TK_REG:
-          case TK_NUM:
+          case TK_NUM://这几个token类型需要记录str，即具体token字段而不仅仅type就够
           if(nr_token < TOKENS_SIZE){
             if(substr_len>MAX_TOKEN_LEN){
               printf("Token too long at position %d\n", position);
@@ -152,7 +152,7 @@ static bool make_token(char *e) {
       }
     }
 
-    if (i == NR_REGEX) {
+    if (i == NR_REGEX) {//没匹配到
       printf("no match at position %d\n%s\n%*.s^\n", position, e, position, "");
       return false;
     }
@@ -174,6 +174,7 @@ static bool make_token(char *e) {
 
   return true;
 }
+//判断表达式是否被一对匹配的括号包围着,同时检查表达式的左右括号是否匹配
 bool check_parentheses(int l, int r) {
   if (tokens[l].type != '(' || tokens[r].type != ')') return false;
   int balance = 0;
@@ -182,7 +183,7 @@ bool check_parentheses(int l, int r) {
     else if (tokens[i].type == ')') balance--;
     if (balance == 0 && i < r) return false;
   }
-  return balance == 0;
+  return (balance == 0);
 }
 
 int get_priority(int type) {
@@ -210,9 +211,9 @@ int find_main_op(int l, int r) {
   for (int i = l; i <= r; i++) {
     if (tokens[i].type == '(') paren++;
     else if (tokens[i].type == ')') paren--;
-    else if (paren == 0) {
+    else if (paren == 0) {//只看括号外的运算符
       int prio = get_priority(tokens[i].type);
-      if (prio <= min && prio >= 0) {
+      if (prio <= min && prio >= 0) {//<=保证同优先级，最右边为主运算符
         min = prio;
         main_op = i;
       }
@@ -222,11 +223,11 @@ int find_main_op(int l, int r) {
 }
 
 
-
+//递归求值
 int eval(int l,int r){
   if(l>r){ printf("Error: Invalid expression\n");
     return 0;}
-  if (l==r){   
+  if (l==r){//单个token,为数字,返回值
     if (tokens[l].type == TK_NUM || tokens[l].type == TK_HEX) {
       char *endptr;
       long num = strtol(tokens[l].str, &endptr, 0);
@@ -244,7 +245,7 @@ int eval(int l,int r){
    }
 
     
-   if (check_parentheses(l,r) == true){
+   if (check_parentheses(l,r) == true){//被一对匹配的括号包围
     return eval(l+1,r-1);
    }
 
@@ -270,7 +271,11 @@ int eval(int l,int r){
     case '+': return val1 + val2;
     case '-': return val1 - val2;
     case '*': return val1 * val2;
-    case '/': return val1 / val2;
+    case '/':   if (val2 == 0) {
+        printf("Error: Division by zero\n");
+        return 0;
+        }
+        return val1 / val2;
     case TK_EQ: return (val1 == val2);
     case TK_NOEQ: return (val1 != val2);
     case TK_AND: return (val1 && val2);

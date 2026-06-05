@@ -19,10 +19,10 @@
 #include <common.h>
 
 typedef struct watchpoint {
-    int NO;
+    int NO;//编号
     struct watchpoint *next;
     char expr[128];             // 表达式字符串（如 "$eax" 或 "a + b"）
-    word_t last_val;            // 上一次表达式的值
+    word_t last_val;            // 上一次表达式的值，如果不同则暂停nemu
   
     /* TODO: Add more members if necessary */
   

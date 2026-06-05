@@ -54,7 +54,6 @@ static int cmd_q(char *args) {
   nemu_state.state = NEMU_QUIT; 
   return -1;
 }
-//键入help
 static int cmd_help(char *args);
 static int  cmd_si(char *args);
 static int cmd_info(char *args);
@@ -62,6 +61,7 @@ static int cmd_x(char *args);
 static int cmd_p(char *args);
 static int cmd_w(char *args);
 static int cmd_d(char *args);
+static int cmd_expr_test(char *args);
 
 
 static struct {
@@ -77,13 +77,14 @@ static struct {
   {"x", "Finds the value of the expression EXPR, uses the result as the starting memory address, and outputs consecutive N 4 bytes in hexadecimal.", cmd_x},
   {"p","Find the value of the expression EXPR",cmd_p},
   {"w","Suspend program execution when the value of expression EXPR changes.",cmd_w},
-  {"d","	Deletes the watchpoint with ID N.",cmd_d}
+  {"d","	Deletes the watchpoint with ID N.",cmd_d},
+  { "expr_test", "Test expression evaluation from a file", cmd_expr_test },
 
 
 };
 
-#define NR_CMD ARRLEN(cmd_table)
-
+#define NR_CMD ARRLEN(cmd_table)//cmd_table的长度
+//键入help
 static int cmd_help(char *args) {
   /* extract the first argument */
   char *arg = strtok(NULL, " ");
@@ -128,6 +129,7 @@ static int  cmd_si(char *args){
   }
   return 0;
 }
+//打印寄存器和监视点
 static int cmd_info(char *args){
   char *arg = strtok(args, " ");
   if (arg == NULL) {
@@ -147,6 +149,7 @@ static int cmd_info(char *args){
 
   return 0;
 }
+//扫描内存
 static int cmd_x(char *args) {
   // 参数分解
   char *arg1 = strtok(args, " ");     // N
@@ -284,6 +287,49 @@ static int cmd_d(char *args) {
       printf("Error: Watchpoint %d not found.\n", no);
   }
 
+  return 0;
+}
+
+static int cmd_expr_test(char *args) {
+  if (args == NULL) {
+    printf("Usage: expr_test <file>\n");
+    return 0;
+  }
+
+  FILE *fp = fopen(args, "r");
+  if (fp == NULL) {
+    printf("Cannot open file: %s\n", args);
+    return 0;
+  }
+
+  char line[65536];
+  int total = 0, pass = 0;
+
+  while (fgets(line, sizeof(line), fp) != NULL) {
+    // 去掉末尾换行
+    line[strcspn(line, "\n")] = '\0';
+
+    // 格式: 结果 表达式
+    char *expr_str = NULL;
+    unsigned expected = strtoul(line, &expr_str, 10);
+
+    // 跳过结果和表达式之间的空格
+    while (*expr_str == ' ') expr_str++;
+
+    bool success = false;
+    word_t result = expr(expr_str, &success);
+
+    if (success && result == expected) {
+      pass++;
+    } else {
+      printf("FAIL: %s\n  expected = %u, got = %u\n",
+             expr_str, expected, result);
+    }
+    total++;
+  }
+
+  fclose(fp);
+  printf("Passed %d/%d\n", pass, total);
   return 0;
 }
 

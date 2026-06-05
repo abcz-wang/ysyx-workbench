@@ -20,7 +20,7 @@
 
 
 static WP wp_pool[NR_WP] = {};
-static WP *head = NULL, *free_ = NULL;
+static WP *head = NULL, *free_ = NULL;//head用于组织使用中的监视点结构, free_用于组织空闲的监视点结构
 static int wp_counter = 0; 
 
 void init_wp_pool() {
@@ -90,7 +90,7 @@ bool delete_wp(int no) {
 
   return false; // 没有找到
 }
-
+//列出检查点
 void list_watchpoints() {
   if (head == NULL) {
     printf("No watchpoints.\n");
@@ -106,6 +106,7 @@ void list_watchpoints() {
     wp = wp->next;
   }
 }
+//检查监视点是否触发
 bool check_watchpoints() {
   WP *wp = head;
   bool changed = false;
